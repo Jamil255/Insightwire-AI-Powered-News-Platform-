@@ -1,0 +1,60 @@
+/* General styles for the app */
+.App {
+    font-family: Arial, sans-serif;
+    background-color: #ffffff;
+    padding-top: 20px; /* Space for fixed ticker */
+}
+
+/* Reset specific spacing for news cards across all routes */
+.news-card .news-image-container {
+    margin-bottom: 0 !important;
+    /* Force override any margin */
+}
+
+.news-card .news-content {
+    padding-top: 4px !important;
+    /* Force minimal top padding */
+}
+
+/* Ensure consistent container padding */
+.container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+/* Make sure sections don't add unexpected margins */
+section {
+    margin-bottom: 2rem;
+}
+
+/* Reset for grid items */
+.news-grid-item {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Chatbot positioning */
+.chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    /* Ensures the chatbot appears above other content */
+    /* Add any size constraints if needed */
+    max-width: 350px;
+    max-height: 500px;
+}
+
+/* If you want to initially show just a chat icon that expands on click */
+.chatbot-container.minimized {
+    width: 60px;
+    height: 60px;
+    overflow: hidden;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* You might want to add transition for smooth open/close animation */
+.chatbot-container {
+    transition: all 0.3s ease;
+}

@@ -1,0 +1,99 @@
+.comments-section {
+    margin-top: 40px;
+    padding: 20px;
+    border-top: 1px solid #ddd;
+    background-color: #f9f9f9;
+    border-radius: 12px;
+    /* Increased corner radius */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    /* Subtle shadow for better visuals */
+    max-width: 1200px;
+    /* Optional: Center the section with a maximum width */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.comments-section h2 {
+    margin-bottom: 20px;
+    font-size: 1.8rem;
+    /* Slightly larger title size */
+    font-weight: bold;
+    text-align: center;
+    color: #333;
+}
+
+.add-comment {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 12px;
+    /* Rounded corners for input container */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.comment-textarea {
+    width: 100%;
+    margin-bottom: 15px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    /* Increased corner radius */
+    font-size: 1.1rem;
+    /* Slightly larger font for readability */
+    height: 120px;
+    /* Increased height */
+    background-color: #f9f9f9;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+    /* Inner shadow for depth */
+    resize: none;
+    /* Prevent manual resizing */
+}
+
+.comment-textarea:focus {
+    border-color: #d40000;
+    background-color: #fff;
+    outline: none;
+    box-shadow: 0 0 5px rgba(212, 0, 0, 0.2);
+    /* Highlight on focus */
+}
+
+.submit-button {
+    align-self: flex-end;
+    padding: 12px 25px;
+    /* Slightly larger padding */
+    background-color: #d40000;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    /* Rounded button */
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.submit-button:hover {
+    background-color: #b30000;
+}
+
+.comments-list {
+    margin-top: 20px;
+}
+
+.comment {
+    margin-bottom: 15px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    /* Increased corner radius */
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    /* Add shadow for a card-like feel */
+}
+
+.comment strong {
+    color: #d40000;
+    font-weight: bold;
+}

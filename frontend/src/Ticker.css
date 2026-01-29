@@ -1,0 +1,35 @@
+
+/* Development Ticker Styles */
+.development-ticker {
+    /* width: 100%; Removed to prevent overflow issues */
+    background-color: rgb(223, 33, 33); /* Changed back to yellow as requested previously, or keep red if user changed it? The user code showed background-color: red in the read_file output. */ 
+    color: white; /* Black text usually looks better on yellow/red warning */
+    overflow: hidden;
+    white-space: nowrap;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    position: fixed; /* Fixed position to stay on scroll */
+    top: 0;
+    left: 0;
+    right: 0; /* Ensures it spans full width */
+    z-index: 2000; /* Extremely high z-index to be on top of everything */
+}
+
+.ticker-content {
+    display: inline-block;
+    white-space: nowrap;
+    animation: marquee 20s linear infinite;
+    font-weight: bold;
+    font-size: 14px;
+    padding-left: 100%; 
+}
+
+@keyframes marquee {
+    0% {
+        transform: translate3d(0, 0, 0);
+    }
+    100% {
+        transform: translate3d(-100%, 0, 0);
+    }
+}
