@@ -22,11 +22,11 @@ app.use(cors());
 
 app.get('/api/extract-image', async (req, res) => {
   const { url } = req.query;
-  
+
   if (!url) {
     return res.status(400).json({ error: 'URL parameter is required' });
   }
-  
+
   try {
     // Fetch the HTML content of the URL
     const response = await axios.get(url, {
@@ -35,28 +35,28 @@ app.get('/api/extract-image', async (req, res) => {
       },
       timeout: 8000 // 8 second timeout
     });
-    
+
     const html = response.data;
     const $ = cheerio.load(html);
-    
+
     // Try to find the OpenGraph image first (highest quality usually)
     let imageUrl = $('meta[property="og:image"]').attr('content');
-    
+
     // If no OpenGraph image, try Twitter image
     if (!imageUrl) {
       imageUrl = $('meta[name="twitter:image"]').attr('content');
     }
-    
+
     // If still no image, look for the first large image in the article
     if (!imageUrl) {
       $('img').each((i, img) => {
         const src = $(img).attr('src');
         const width = $(img).attr('width');
         const height = $(img).attr('height');
-        
+
         // Consider images that are reasonably sized
-        if (src && ((width && height && width >= 200 && height >= 200) || 
-                   (!width && !height && src.includes('jpg') || src.includes('jpeg') || src.includes('png')))) {
+        if (src && ((width && height && width >= 200 && height >= 200) ||
+          (!width && !height && src.includes('jpg') || src.includes('jpeg') || src.includes('png')))) {
           // Make sure the src is an absolute URL
           if (src.startsWith('http')) {
             imageUrl = src;
@@ -70,7 +70,7 @@ app.get('/api/extract-image', async (req, res) => {
         }
       });
     }
-    
+
     res.json({ imageUrl });
   } catch (error) {
     console.error('Error extracting image:', error);
@@ -138,12 +138,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/feedbacks", feedbackRoutes);
 app.use("/api/articles", articleRoutes);
 app.use('/api/user', userRoutes);  // For user-related data, profile, etc.
-// Connect to DB
-connectDB();
-
-
-
-
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+   await connectDB();
+});

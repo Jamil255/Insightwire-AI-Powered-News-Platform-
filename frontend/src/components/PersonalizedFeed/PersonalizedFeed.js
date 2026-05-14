@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import "./personalized-feed.css"
 
@@ -15,13 +15,14 @@ const PersonalizedFeed = () => {
   const [visibleItems, setVisibleItems] = useState(8)
   const [activeBias, setActiveBias] = useState("all")
   const [filterChanging, setFilterChanging] = useState(false)
+  const visibleItemsRef = useRef(8) // ref to read visibleItems inside observer without re-creating it
 
-  // Bias categories
+  // Bias categories — IDs match actual DB biasness values (lowercase)
   const biasCategories = [
-    { id: "all", label: "All Stories" },
-    { id: "LABEL_0", label: "Left-Leaning" },
-    { id: "LABEL_1", label: "Central" },
-    { id: "LABEL_2", label: "Right-Leaning" },
+    { id: "all",     label: "All Stories" },
+    { id: "left",    label: "Left-Leaning" },
+    { id: "central", label: "Central" },
+    { id: "right",   label: "Right-Leaning" },
   ]
 
   // Function to shuffle array (Fisher-Yates algorithm)
@@ -34,12 +35,18 @@ const PersonalizedFeed = () => {
     return newArray
   }
 
-  // Observer for lazy loading
+  // Keep ref in sync with state
   useEffect(() => {
+    visibleItemsRef.current = visibleItems
+  }, [visibleItems])
+
+  // Observer for lazy loading — only depends on filteredArticles.length, NOT visibleItems
+  useEffect(() => {
+    if (filteredArticles.length === 0) return
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && visibleItems < filteredArticles.length) {
-          // When user scrolls to the bottom, show more items
+        if (entries[0].isIntersecting && visibleItemsRef.current < filteredArticles.length) {
           setVisibleItems((prev) => Math.min(prev + 6, filteredArticles.length))
         }
       },
@@ -47,16 +54,10 @@ const PersonalizedFeed = () => {
     )
 
     const sentinel = document.getElementById("load-more-sentinel")
-    if (sentinel) {
-      observer.observe(sentinel)
-    }
+    if (sentinel) observer.observe(sentinel)
 
-    return () => {
-      if (sentinel) {
-        observer.unobserve(sentinel)
-      }
-    }
-  }, [visibleItems, filteredArticles.length])
+    return () => { observer.disconnect() }
+  }, [filteredArticles.length])
 
   // Filter articles when bias selection changes
   useEffect(() => {
@@ -70,7 +71,13 @@ const PersonalizedFeed = () => {
         setFilteredArticles(articles)
       } else {
         const filtered = articles.filter((article) => {
-          return article.biasness === activeBias
+          // Normalize DB value to lowercase for comparison
+          const normalized = (article.biasness || '').toLowerCase()
+          // "central" and "center" both match the "central" filter
+          if (activeBias === 'central') return normalized === 'central' || normalized === 'center' || normalized === 'label_1'
+          if (activeBias === 'left')    return normalized === 'left'    || normalized === 'label_0'
+          if (activeBias === 'right')   return normalized === 'right'   || normalized === 'label_2'
+          return normalized === activeBias
         })
         setFilteredArticles(filtered)
       }
@@ -87,106 +94,92 @@ const PersonalizedFeed = () => {
 
   // Fetch articles on component mount
   useEffect(() => {
+    let cancelled = false
+
     const fetchPersonalizedArticles = async () => {
       try {
         setLoading(true)
 
-        // Fetch articles from the API
         const response = await fetch("http://localhost:5000/api/articles/scraped")
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
-        }
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`)
 
         const data = await response.json()
+        if (cancelled) return
 
-        // Simulate personalization by filtering and shuffling
         const personalizedArticles = shuffleArray(data).slice(0, 30)
 
-        // Initialize image array with placeholders
-        const placeholders = new Array(personalizedArticles.length).fill(null)
-        setImageUrls(placeholders)
-
-        // Set articles with a slight delay to allow transition effects
-        setTimeout(() => {
-          setArticles(personalizedArticles)
-          setFilteredArticles(personalizedArticles)
-          setInitialLoading(false)
-
-          // Load images in batches
-          const loadImages = async () => {
-            const batchSize = 5
-            const newImageUrls = [...placeholders]
-
-            for (let i = 0; i < personalizedArticles.length; i += batchSize) {
-              const batch = personalizedArticles.slice(i, i + batchSize)
-
-              await Promise.all(
-                batch.map(async (article, batchIndex) => {
-                  const index = i + batchIndex
-                  if (article.url) {
-                    try {
-                      const controller = new AbortController()
-                      const timeoutId = setTimeout(() => controller.abort(), 4000)
-
-                      const imageResponse = await fetch(
-                        `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
-                        { signal: controller.signal },
-                      )
-
-                      clearTimeout(timeoutId)
-
-                      if (imageResponse.ok) {
-                        const imageData = await imageResponse.json()
-                        newImageUrls[index] =
-                          imageData.imageUrl ||
-                          `https://source.unsplash.com/random/1200x600/?news,${article.publication?.replace(/\s+/g, "")}${index}`
-                      } else {
-                        newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`
-                      }
-                    } catch (err) {
-                      console.error("Error extracting image for article:", err)
-                      newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`
-                    }
-                  } else {
-                    newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`
-                  }
-
-                  setImageUrls([...newImageUrls])
-                }),
-              )
-            }
-          }
-
-          loadImages()
-          setLoading(false)
-        }, 500)
-      } catch (err) {
-        console.error("Error fetching personalized articles:", err)
-        setError(err.message)
-        setLoading(false)
+        // Render cards immediately — single initial render
+        setArticles(personalizedArticles)
+        setFilteredArticles(personalizedArticles)
         setInitialLoading(false)
+        setLoading(false)
+
+        // Load images silently into a buffer — update state ONCE at the end
+        const imageBuffer = new Array(personalizedArticles.length).fill(null)
+        const batchSize = 5
+
+        for (let i = 0; i < personalizedArticles.length; i += batchSize) {
+          if (cancelled) break
+          const batch = personalizedArticles.slice(i, i + batchSize)
+
+          await Promise.all(
+            batch.map(async (article, batchIndex) => {
+              const index = i + batchIndex
+              if (article.url) {
+                try {
+                  const controller = new AbortController()
+                  const timeoutId = setTimeout(() => controller.abort(), 4000)
+                  const imageResponse = await fetch(
+                    `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
+                    { signal: controller.signal },
+                  )
+                  clearTimeout(timeoutId)
+                  if (imageResponse.ok) {
+                    const imageData = await imageResponse.json()
+                    imageBuffer[index] = imageData.imageUrl ||
+                      `https://source.unsplash.com/random/1200x600/?news,${article.publication?.replace(/\s+/g, "")}${index}`
+                  } else {
+                    imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`
+                  }
+                } catch (err) {
+                  if (err.name !== 'AbortError') console.error("Error extracting image:", err)
+                  imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`
+                }
+              } else {
+                imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`
+              }
+            }),
+          )
+        }
+
+        // Single state update after ALL images resolved — zero mid-load re-renders
+        if (!cancelled) setImageUrls([...imageBuffer])
+
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Error fetching personalized articles:", err)
+          setError(err.message)
+          setLoading(false)
+          setInitialLoading(false)
+        }
       }
     }
 
     fetchPersonalizedArticles()
+    return () => { cancelled = true }
   }, [])
 
   // Function to get bias info (color, text)
+  // DB stores: "left", "center"/"central", "right" OR legacy "LABEL_0/1/2"
   const getBiasInfo = (biasness, score) => {
     const scoreValue = parseFloat(score) || 0.5
     const intensity = scoreValue > 0.8 ? "strong" : scoreValue > 0.6 ? "moderate" : "mild"
-    
-    switch (biasness) {
-      case "LABEL_0":
-        return { class: "bias-center", text: `Neutral (${intensity})` }
-      case "LABEL_1":
-        return { class: "bias-left", text: `Left-Leaning (${intensity})` }
-      case "LABEL_2":
-        return { class: "bias-right", text: `Right-Leaning (${intensity})` }
-      default:
-        return { class: "bias-unknown", text: "Bias Unknown" }
-    }
+    const normalized = (biasness || '').toLowerCase()
+
+    if (normalized === 'left'   || normalized === 'label_0') return { class: "bias-left",    text: `Left-Leaning (${intensity})` }
+    if (normalized === 'center' || normalized === 'central' || normalized === 'label_1') return { class: "bias-center",   text: `Neutral (${intensity})` }
+    if (normalized === 'right'  || normalized === 'label_2') return { class: "bias-right",   text: `Right-Leaning (${intensity})` }
+    return { class: "bias-unknown", text: "Bias Unknown" }
   }
 
   // Function to get excerpt from content array

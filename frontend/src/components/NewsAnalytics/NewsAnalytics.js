@@ -25,85 +25,75 @@ const NewsAnalytics = () => {
   ];
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchArticles = async () => {
       try {
         setLoading(true);
-        
-        // Fetch articles from the API
+
         const response = await fetch('http://localhost:5000/api/articles/scraped');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
         const data = await response.json();
-        
-        // Get articles for display
+        if (cancelled) return;
+
         const newsArticles = data.slice(0, 30);
         setArticles(newsArticles);
         setFilteredArticles(newsArticles);
-        
-        // Initialize image array with placeholders
-        const placeholders = new Array(newsArticles.length).fill(null);
-        setImageUrls(placeholders);
-        
-        // Load images in batches
-        const loadImages = async () => {
-          const batchSize = 5;
-          const newImageUrls = [...placeholders];
+        setLoading(false);
 
-          for (let i = 0; i < newsArticles.length; i += batchSize) {
-            const batch = newsArticles.slice(i, i + batchSize);
+        // Load images silently into a buffer — update state ONCE at the end
+        const imageBuffer = new Array(newsArticles.length).fill(null);
+        const batchSize = 5;
 
-            await Promise.all(
-              batch.map(async (article, batchIndex) => {
-                const index = i + batchIndex;
-                if (article.url) {
-                  try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+        for (let i = 0; i < newsArticles.length; i += batchSize) {
+          if (cancelled) break;
+          const batch = newsArticles.slice(i, i + batchSize);
 
-                    const imageResponse = await fetch(
-                      `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
-                      { signal: controller.signal },
-                    );
-
-                    clearTimeout(timeoutId);
-
-                    if (imageResponse.ok) {
-                      const imageData = await imageResponse.json();
-                      newImageUrls[index] =
-                        imageData.imageUrl ||
-                        `https://source.unsplash.com/random/1200x600/?news,${article.publication?.replace(/\s+/g, "")}${index}`;
-                    } else {
-                      newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
-                    }
-                  } catch (err) {
-                    if (err.name !== 'AbortError') {
-                      console.error("Error extracting image for article:", err);
-                    }
-                    newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
+          await Promise.all(
+            batch.map(async (article, batchIndex) => {
+              const index = i + batchIndex;
+              if (article.url) {
+                try {
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 10000);
+                  const imageResponse = await fetch(
+                    `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
+                    { signal: controller.signal },
+                  );
+                  clearTimeout(timeoutId);
+                  if (imageResponse.ok) {
+                    const imageData = await imageResponse.json();
+                    imageBuffer[index] = imageData.imageUrl ||
+                      `https://source.unsplash.com/random/1200x600/?news,${article.publication?.replace(/\s+/g, "")}${index}`;
+                  } else {
+                    imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
                   }
-                } else {
-                  newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
+                } catch (err) {
+                  if (err.name !== 'AbortError') console.error("Error extracting image:", err);
+                  imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
                 }
+              } else {
+                imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
+              }
+            }),
+          );
+        }
 
-                setImageUrls([...newImageUrls]);
-              }),
-            );
-          }
-        };
+        // Single state update after ALL images resolved — zero mid-load re-renders
+        if (!cancelled) setImageUrls([...imageBuffer]);
 
-        loadImages();
-        setLoading(false);
       } catch (err) {
-        console.error("Error fetching articles:", err);
-        setError(err.message);
-        setLoading(false);
+        if (!cancelled) {
+          console.error("Error fetching articles:", err);
+          setError(err.message);
+          setLoading(false);
+        }
       }
     };
 
     fetchArticles();
+    return () => { cancelled = true; };
   }, []);
 
   // Filter articles when category changes

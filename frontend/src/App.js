@@ -25,12 +25,7 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
-        <div className="development-ticker">
-          <div className="ticker-content">
-            This is the development version
-          </div>
-        </div>
+      <div>
         <Navbar onNavClick={handleNavClick} />
         <Routes>
           {/* Home/News Route */}

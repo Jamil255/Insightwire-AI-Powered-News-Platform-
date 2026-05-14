@@ -10,6 +10,7 @@ const MediaBias = () => {
   const [error, setError] = useState(null);
   const imageRefs = useRef([]);
   const [visibleItems, setVisibleItems] = useState(8);
+  const visibleItemsRef = useRef(8); // ref to track visibleItems inside observer without re-creating it
 
   // Function to shuffle array (Fisher-Yates algorithm)
   const shuffleArray = (array) => {
@@ -21,11 +22,18 @@ const MediaBias = () => {
     return newArray;
   };
 
-  // Observer for lazy loading
+  // Keep ref in sync with state
   useEffect(() => {
+    visibleItemsRef.current = visibleItems;
+  }, [visibleItems]);
+
+  // Observer for lazy loading — only depends on articles.length, NOT visibleItems
+  useEffect(() => {
+    if (articles.length === 0) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && visibleItems < articles.length) {
+        if (entries[0].isIntersecting && visibleItemsRef.current < articles.length) {
           // When user scrolls to the bottom, show more items
           setVisibleItems(prev => Math.min(prev + 6, articles.length));
         }
@@ -39,119 +47,92 @@ const MediaBias = () => {
     }
     
     return () => {
-      if (sentinel) {
-        observer.unobserve(sentinel);
-      }
+      observer.disconnect();
     };
-  }, [visibleItems, articles.length]);
+  }, [articles.length]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchArticles = async () => {
       try {
-        // Show loading state immediately
         setLoading(true);
-        
-        // Fetch articles from the API
+
         const response = await fetch('http://localhost:5000/api/articles/scraped');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
         const data = await response.json();
-        
-        // Shuffle and select random 30 articles
+        if (cancelled) return;
+
         const shuffledArticles = shuffleArray(data);
         const randomArticles = shuffledArticles.slice(0, 30);
-        
-        // Initialize image array with placeholders
-        const placeholders = new Array(randomArticles.length).fill(null);
-        setImageUrls(placeholders);
-        
-        // Set articles with a slight delay to allow transition effects
-        setTimeout(() => {
-          setArticles(randomArticles);
-          
-          // Initialize visible items
-          setVisibleItems(Math.min(8, randomArticles.length));
-          
-          // Start loading images
-          const loadImages = async () => {
-            // Process images in small batches to avoid overwhelming the network
-            const batchSize = 5;
-            const newImageUrls = [...placeholders];
-            
-            for (let i = 0; i < randomArticles.length; i += batchSize) {
-              const batch = randomArticles.slice(i, i + batchSize);
-              
-              // Process batch in parallel
-              await Promise.all(batch.map(async (article, batchIndex) => {
-                const index = i + batchIndex;
-                if (article.url) {
-                  try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
-                    
-                    const imageResponse = await fetch(
-                      `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
-                      { signal: controller.signal }
-                    );
-                    
-                    clearTimeout(timeoutId);
-                    
-                    if (imageResponse.ok) {
-                      const imageData = await imageResponse.json();
-                      newImageUrls[index] = imageData.imageUrl || 
-                        `https://source.unsplash.com/random/1200x600/?news,${article.publication?.replace(/\s+/g, '')}${index}`;
-                    } else {
-                      newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
-                    }
-                  } catch (err) {
-                    if (err.name !== 'AbortError') {
-                      console.error("Error extracting image for article:", err);
-                    }
-                    newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
-                  }
+
+        // Set articles & loading together — single render, no flash
+        setArticles(randomArticles);
+        setVisibleItems(Math.min(8, randomArticles.length));
+        setLoading(false);
+
+        // Load images silently into a ref, then set state ONCE at the end
+        const imageBuffer = new Array(randomArticles.length).fill(null);
+        const batchSize = 5;
+
+        for (let i = 0; i < randomArticles.length; i += batchSize) {
+          if (cancelled) break;
+          const batch = randomArticles.slice(i, i + batchSize);
+
+          await Promise.all(batch.map(async (article, batchIndex) => {
+            const index = i + batchIndex;
+            if (article.url) {
+              try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                const imageResponse = await fetch(
+                  `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
+                  { signal: controller.signal }
+                );
+                clearTimeout(timeoutId);
+                if (imageResponse.ok) {
+                  const imageData = await imageResponse.json();
+                  imageBuffer[index] = imageData.imageUrl ||
+                    `https://source.unsplash.com/random/1200x600/?news,${article.publication?.replace(/\s+/g, '')}${index}`;
                 } else {
-                  newImageUrls[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
+                  imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
                 }
-                
-                // Update state after each batch item for smooth loading effect
-                setImageUrls([...newImageUrls]);
-              }));
+              } catch (err) {
+                if (err.name !== 'AbortError') console.error('Image fetch error:', err);
+                imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
+              }
+            } else {
+              imageBuffer[index] = `https://source.unsplash.com/random/1200x600/?news,${index}`;
             }
-          };
-          
-          loadImages();
-        }, 100);
-        
-        setLoading(false);
+          }));
+        }
+
+        // Single state update after ALL images are resolved — zero mid-load re-renders
+        if (!cancelled) setImageUrls([...imageBuffer]);
+
       } catch (err) {
-        console.error("Error fetching articles:", err);
-        setError(err.message);
-        setLoading(false);
+        if (!cancelled) {
+          console.error('Error fetching articles:', err);
+          setError(err.message);
+          setLoading(false);
+        }
       }
     };
 
     fetchArticles();
-    
-    // Cleanup function
-    return () => {
-      imageRefs.current = [];
-    };
+
+    return () => { cancelled = true; };
   }, []);
 
   // Convert biasness label to category
+  // DB stores: "left", "center"/"central", "right" OR legacy "LABEL_0/1/2"
   const getBiasFromLabel = (biasLabel) => {
-    switch(biasLabel) {
-      case 'LABEL_0':
-        return 'left';
-      case 'LABEL_1':
-        return 'center';
-      case 'LABEL_2':
-        return 'right';
-      default:
-        return 'unknown';
+    switch((biasLabel || '').toLowerCase()) {
+      case 'left':   case 'label_0': return 'left';
+      case 'center': case 'central': case 'label_1': return 'center';
+      case 'right':  case 'label_2': return 'right';
+      default: return 'unknown';
     }
   };
 
@@ -218,9 +199,7 @@ const MediaBias = () => {
           const bias = getBiasFromLabel(biasLabel);
           const biasInfo = getBiasInfo(bias);
           
-          // Get confidence score (if available)
-          const confidenceScore = article.score ? 
-            parseFloat(article.score).toFixed(2) * 100 : null;
+
                   
           return (
             <div

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./StoryComparision.css";
 
@@ -7,119 +7,117 @@ const StoryComparison = () => {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [visibleItems, setVisibleItems] = useState(12); // Initial number of visible items
+  const [visibleItems, setVisibleItems] = useState(12);
+  const visibleItemsRef = useRef(12); // ref to read visibleItems inside observer without re-creating it
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    visibleItemsRef.current = visibleItems;
+  }, [visibleItems]);
 
   // Function to convert database bias labels to display values
+  // DB stores: "left", "center"/"central", "right" OR legacy "LABEL_0/1/2"
   const convertBiasLabel = (biasLabel) => {
-    switch(biasLabel) {
-      case "LABEL_0": return "L"; // Left
-      case "LABEL_1": return "C"; // Center
-      case "LABEL_2": return "R"; // Right
-      default: return "C"; // Default to Center if unknown
+    switch((biasLabel || '').toLowerCase()) {
+      case 'left':    case 'label_0': return 'L';
+      case 'center':  case 'central': case 'label_1': return 'C';
+      case 'right':   case 'label_2': return 'R';
+      default: return 'U';
     }
   };
 
   // Function to calculate center coverage percentage from bias score
   const calculateCenterCoverage = (biasLabel, score) => {
-    // For center articles, higher score means more balanced
     if (biasLabel === "LABEL_1") {
       return `${Math.round(score * 100)}%`;
-    }
-    // For left/right articles, higher score means less balanced
-    else {
+    } else {
       return `${Math.round((1 - score) * 100)}%`;
     }
   };
 
+  // IntersectionObserver — separate from fetch, only re-runs when articles load
   useEffect(() => {
+    if (articles.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleItemsRef.current < articles.length) {
+          setVisibleItems(prev => Math.min(prev + 6, articles.length));
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    const sentinel = document.getElementById('load-more-sentinel');
+    if (sentinel) observer.observe(sentinel);
+
+    return () => { observer.disconnect(); };
+  }, [articles.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const fetchArticles = async () => {
       try {
-        // Show loading state immediately
         setLoading(true);
-        
-        // Fetch articles from the API
+
         const response = await fetch("http://localhost:5000/api/articles/scraped");
-        
-        if (!response.ok) {
-          throw new Error(`API call failed with status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
+
         const articlesData = await response.json();
-        
-        // Process and shuffle the articles first
+        if (cancelled) return;
+
         const shuffledArticles = articlesData
           .sort(() => 0.5 - Math.random())
-          .slice(0, 30); // Take only 30 articles
-        
-        // Process articles with initial placeholders
+          .slice(0, 30);
+
         const initialArticles = shuffledArticles.map(article => {
-          // Get bias type from database instead of generating random
-          const biasType = convertBiasLabel(article.biasness || "LABEL_1");
-          
-          // Calculate balanced coverage using the score from database
+          const biasType = convertBiasLabel(article.biasness); // don't default to LABEL_1 — let unknown stay unknown
           const centerCoverage = calculateCenterCoverage(article.biasness, article.score || 0.5);
-          
-          // Create sample perspective data for each article
-          // We'll generate this data based on the bias type
+
           let leftSources, centerSources, rightSources;
-          
           if (biasType === "L") {
-            leftSources = Math.floor(Math.random() * 30 + 40); // Higher for left bias
+            leftSources = Math.floor(Math.random() * 30 + 40);
             centerSources = Math.floor(Math.random() * 20 + 20);
             rightSources = Math.floor(Math.random() * 15 + 10);
           } else if (biasType === "R") {
             leftSources = Math.floor(Math.random() * 15 + 10);
             centerSources = Math.floor(Math.random() * 20 + 20);
-            rightSources = Math.floor(Math.random() * 30 + 40); // Higher for right bias
-          } else { // Center
+            rightSources = Math.floor(Math.random() * 30 + 40);
+          } else {
             leftSources = Math.floor(Math.random() * 20 + 20);
-            centerSources = Math.floor(Math.random() * 30 + 40); // Higher for center
+            centerSources = Math.floor(Math.random() * 30 + 40);
             rightSources = Math.floor(Math.random() * 20 + 20);
           }
-          
+
           const totalSources = leftSources + centerSources + rightSources;
-          
+
           return {
             ...article,
             id: article._id || `article-${Math.random().toString(36).substr(2, 9)}`,
-            imageUrl: null, // Initial placeholder, will be loaded asynchronously
-            biasType: biasType, // Use database value
-            centerCoverage: centerCoverage, // Use calculated value from database score
-            sources: Math.floor(Math.random() * 15 + 5), // Random number between 5-20
+            imageUrl: null,
+            biasType,
+            centerCoverage,
+            sources: Math.floor(Math.random() * 15 + 5),
             publicationDate: formatDate(article.date),
             perspectives: {
               left: {
                 title: article.title,
                 content: Array.isArray(article.content) ? article.content.join(" ") : article.content,
                 sources: leftSources,
-                keyPoints: [
-                  "Focus on social impact",
-                  "Emphasis on affected communities",
-                  "Discussion of systemic factors",
-                  "Historical context of the issue"
-                ]
+                keyPoints: ["Focus on social impact", "Emphasis on affected communities", "Discussion of systemic factors", "Historical context of the issue"]
               },
               center: {
                 title: article.title,
                 content: Array.isArray(article.content) ? article.content.join(" ") : article.content,
                 sources: centerSources,
-                keyPoints: [
-                  "Balanced reporting of facts",
-                  "Multiple viewpoints presented",
-                  "Context about broader implications",
-                  "Focus on verified information"
-                ]
+                keyPoints: ["Balanced reporting of facts", "Multiple viewpoints presented", "Context about broader implications", "Focus on verified information"]
               },
               right: {
                 title: article.title,
                 content: Array.isArray(article.content) ? article.content.join(" ") : article.content,
                 sources: rightSources,
-                keyPoints: [
-                  "Focus on individual responsibility",
-                  "Economic implications highlighted",
-                  "Traditional values perspective",
-                  "National security considerations"
-                ]
+                keyPoints: ["Focus on individual responsibility", "Economic implications highlighted", "Traditional values perspective", "National security considerations"]
               }
             },
             coverageData: {
@@ -132,103 +130,59 @@ const StoryComparison = () => {
             }
           };
         });
-        
-        // Set articles immediately so the UI can render
+
+        // Render cards immediately with placeholders — 1st and only initial render
         setArticles(initialArticles);
         setLoading(false);
-        
-        // Load images in parallel in the background
-        const loadImages = async () => {
-          // Process in smaller batches to prevent network overload
-          const batchSize = 5;
-          const updatedArticles = [...initialArticles];
-          
-          // Process images in batches
-          for (let i = 0; i < updatedArticles.length; i += batchSize) {
-            const batch = updatedArticles.slice(i, i + batchSize);
-            
-            // Process batch concurrently
-            await Promise.all(batch.map(async (article, batchIndex) => {
-              const index = i + batchIndex;
-              let imageUrl = generateTitleImage(article.title);
-              
-              // Try to extract image from the article URL
-              if (article.url) {
-                try {
-                  // Use AbortController to prevent hanging requests
-                  const controller = new AbortController();
-                  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-                  
-                  const imageResponse = await fetch(
-                    `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
-                    { signal: controller.signal }
-                  );
-                  
-                  clearTimeout(timeoutId);
-                  
-                  if (imageResponse.ok) {
-                    const imageData = await imageResponse.json();
-                    if (imageData.imageUrl) {
-                      imageUrl = imageData.imageUrl;
-                    }
-                  }
-                } catch (error) {
-                  // Just continue with the fallback image
-                  if (error.name !== 'AbortError') {
-                    console.error("Image extraction error:", error);
-                  }
+
+        // Load all images silently into a buffer, then update state ONCE
+        const imageBuffer = initialArticles.map(a => ({ ...a }));
+        const batchSize = 5;
+
+        for (let i = 0; i < imageBuffer.length; i += batchSize) {
+          if (cancelled) break;
+          const batch = imageBuffer.slice(i, i + batchSize);
+
+          await Promise.all(batch.map(async (article, batchIndex) => {
+            const index = i + batchIndex;
+            let imageUrl = generateTitleImage(article.title);
+
+            if (article.url) {
+              try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                const imageResponse = await fetch(
+                  `http://localhost:5000/api/extract-image?url=${encodeURIComponent(article.url)}`,
+                  { signal: controller.signal }
+                );
+                clearTimeout(timeoutId);
+                if (imageResponse.ok) {
+                  const imageData = await imageResponse.json();
+                  if (imageData.imageUrl) imageUrl = imageData.imageUrl;
                 }
+              } catch (err) {
+                if (err.name !== 'AbortError') console.error("Image extraction error:", err);
               }
-              
-              // Update the article with the image URL
-              updatedArticles[index] = {
-                ...updatedArticles[index],
-                imageUrl: imageUrl
-              };
-              
-              // Update the state periodically to show loading progress
-              if (batchIndex === batch.length - 1 || (batchIndex > 0 && batchIndex % 2 === 0)) {
-                setArticles([...updatedArticles]);
-              }
-            }));
-          }
-          
-          // Final update to ensure all changes are reflected
-          setArticles(updatedArticles);
-        };
-        
-        // Start loading images in the background
-        loadImages();
-        
+            }
+
+            imageBuffer[index] = { ...imageBuffer[index], imageUrl };
+          }));
+        }
+
+        // Single state update after ALL images resolved — zero mid-load re-renders
+        if (!cancelled) setArticles([...imageBuffer]);
+
       } catch (err) {
-        console.error("Error fetching articles:", err);
-        setError(err.message);
-        setLoading(false);
+        if (!cancelled) {
+          console.error("Error fetching articles:", err);
+          setError(err.message);
+          setLoading(false);
+        }
       }
     };
 
     fetchArticles();
-    
-    // Setup intersection observer for lazy loading more items
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && visibleItems < 30) {
-          setVisibleItems(prev => Math.min(prev + 6, 30));
-        }
-      },
-      { threshold: 0.5 }
-    );
-    
-    const sentinel = document.getElementById('load-more-sentinel');
-    if (sentinel) {
-      observer.observe(sentinel);
-    }
-    
-    return () => {
-      if (sentinel) {
-        observer.unobserve(sentinel);
-      }
-    };
+    return () => { cancelled = true; };
   }, []);
   
   // Format date nicely
@@ -296,7 +250,7 @@ const StoryComparison = () => {
       case "L": return "Left";
       case "R": return "Right";
       case "C": return "Center";
-      default: return "Center";
+      default:  return "Unclassified";
     }
   };
 
@@ -368,7 +322,8 @@ const StoryComparison = () => {
                 <div className={`perspective-bar ${
                   article.biasType === "L" ? "perspective-left" : 
                   article.biasType === "R" ? "perspective-right" : 
-                  "perspective-center"
+                  article.biasType === "C" ? "perspective-center" :
+                  "perspective-unknown"
                 }`}>
                   <span className="perspective-label">
                     {getBiasLabel(article.biasType)}

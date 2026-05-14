@@ -4,12 +4,36 @@ const CategorizedArticle = require("../models/CategorizedArticle");
 // Get all scraped articles
 exports.getScrapedArticles = async (req, res) => {
   try {
-    // Find 30 random articles using MongoDB's aggregation pipeline
-    const articles = await ScrapedArticle.aggregate([
-      { $sample: { size: 30 } }
+    // Fetch a balanced mix of bias categories
+    const leftArticles = await ScrapedArticle.aggregate([
+      { $match: { biasness: { $in: ['left', 'LABEL_0'] } } },
+      { $sample: { size: 10 } }
     ]);
     
-    res.json(articles);
+    const rightArticles = await ScrapedArticle.aggregate([
+      { $match: { biasness: { $in: ['right', 'LABEL_2'] } } },
+      { $sample: { size: 10 } }
+    ]);
+    
+    const centerArticles = await ScrapedArticle.aggregate([
+      { $match: { biasness: { $in: ['central', 'center', 'LABEL_1'] } } },
+      { $sample: { size: 10 } }
+    ]);
+    
+    let combined = [...leftArticles, ...rightArticles, ...centerArticles];
+    
+    // Fallback if we don't have enough articles to make 30
+    if (combined.length < 30) {
+      const more = await ScrapedArticle.aggregate([
+        { $sample: { size: 30 - combined.length } }
+      ]);
+      combined = [...combined, ...more];
+    }
+
+    // Shuffle the combined array
+    combined.sort(() => 0.5 - Math.random());
+    
+    res.json(combined);
   } catch (error) {
     res.status(500).json({ msg: "Server error", error: error.message });
   }
