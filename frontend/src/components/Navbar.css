@@ -329,7 +329,6 @@
   color: white;
   cursor: pointer;
   padding: 6px;
-  /* Reduced from 8px */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -482,12 +481,14 @@
     display: none;
   }
 
-  .navbar-search {
+  .navbar-right {
     display: none;
   }
 
   .navbar-mobile-toggle {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .navbar-mobile-menu {

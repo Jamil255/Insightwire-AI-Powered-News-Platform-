@@ -287,69 +287,115 @@
 }
 
 .bias-indicators h3 {
-    font-size: 20px;
-    margin-bottom: 16px;
-    color: #1f2937;
-    font-weight: 600;
+    font-size: 22px;
+    margin-bottom: 20px;
+    color: #111827;
+    font-weight: 700;
+    letter-spacing: -0.3px;
 }
 
 .bias-indicators-list {
     list-style-type: none;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
 }
 
 .bias-indicator-item {
-    padding: 16px;
-    background-color: #f8fafc;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 
-.bias-indicator-item.language-indicator {
-    border-left: 4px solid #3b82f6;
+.bias-indicator-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    border-radius: 4px 0 0 4px;
 }
 
-.bias-indicator-item.framing-indicator {
-    border-left: 4px solid #8b5cf6;
+.bias-indicator-item:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
-.bias-indicator-item.omission-indicator {
-    border-left: 4px solid #ec4899;
+/* Left bias indicator cards */
+.bias-indicator-item.left-indicator::before {
+    background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+}
+.bias-indicator-item.left-indicator:hover {
+    box-shadow: 0 12px 35px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.bias-indicator-item.source-indicator {
-    border-left: 4px solid #f59e0b;
+/* Right bias indicator cards */
+.bias-indicator-item.right-indicator::before {
+    background: linear-gradient(180deg, #ef4444, #b91c1c);
+}
+.bias-indicator-item.right-indicator:hover {
+    box-shadow: 0 12px 35px rgba(239, 68, 68, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Center bias indicator cards */
+.bias-indicator-item.center-indicator::before {
+    background: linear-gradient(180deg, #22c55e, #15803d);
+}
+.bias-indicator-item.center-indicator:hover {
+    box-shadow: 0 12px 35px rgba(34, 197, 94, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .indicator-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .indicator-badge {
-    font-weight: 600;
-    font-size: 14px;
-    color: #1f2937;
+    font-weight: 700;
+    font-size: 15px;
+    color: #f1f5f9;
+    letter-spacing: -0.2px;
 }
 
 .indicator-impact {
-    font-size: 12px;
-    background-color: rgba(0, 0, 0, 0.06);
-    color: #4b5563;
-    padding: 3px 8px;
-    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    color: #e2e8f0;
+}
+
+/* Impact level colors */
+.left-indicator .indicator-impact {
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+}
+.right-indicator .indicator-impact {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+}
+.center-indicator .indicator-impact {
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
 }
 
 .indicator-description {
     margin: 0 0 12px;
-    line-height: 1.6;
+    line-height: 1.7;
     font-size: 14px;
-    color: #4b5563;
+    color: #94a3b8;
 }
 
 .indicator-example {

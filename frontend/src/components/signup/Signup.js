@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { FaGoogle, FaTimes, FaEye, FaEyeSlash } from "react-icons/fa"
 import "./Signup.css"
 
@@ -50,7 +51,7 @@ const Signup = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault()
     
     if (password !== confirmPassword) {
@@ -60,12 +61,33 @@ const Signup = ({ isOpen, onClose }) => {
     
     setIsLoading(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      console.log("Signup:", { userName, email, password })
-      setIsLoading(false)
-      // Add your authentication logic here
-    }, 1000)
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userName,
+          email,
+          password,
+          authType: "local"
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.msg || "Registration failed");
+      }
+
+      alert("Account created successfully! Please login.");
+      onClose(); // close the modal on success
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const handleGoogleSignup = () => {
@@ -75,7 +97,7 @@ const Signup = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <div className="signup-overlay" onClick={onClose}>
       <div className="signup-dialog" onClick={(e) => e.stopPropagation()}>
         <button className="close-button" onClick={onClose} aria-label="Close">
@@ -186,7 +208,8 @@ const Signup = ({ isOpen, onClose }) => {
           Already have an account? <a href="#login">Log in</a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

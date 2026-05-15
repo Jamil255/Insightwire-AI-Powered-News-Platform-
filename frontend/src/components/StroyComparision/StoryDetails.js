@@ -16,13 +16,13 @@ const StoryDetails = () => {
   const REWRITE_API_URL = "https://26ef-149-40-228-114.ngrok-free.app/rewrite";
 
   // Helper function to map bias label to string
+  // DB stores: "left", "center"/"central", "right" OR legacy "LABEL_0/1/2"
   const mapBiasToString = (bias) => {
-    switch(bias) {
-      case "LABEL_0": return "left";
-      case "LABEL_1": return "center";
-      case "LABEL_2": return "right";
-      default: return "center";
-    }
+    const b = (bias || '').toLowerCase();
+    if (b === 'left'   || b === 'label_0') return "left";
+    if (b === 'center' || b === 'central' || b === 'label_1') return "center";
+    if (b === 'right'  || b === 'label_2') return "right";
+    return "center";
   };
 
   // Helper function to get the opposite bias

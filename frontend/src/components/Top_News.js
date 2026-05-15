@@ -49,10 +49,29 @@ const TopNews = () => {
 
         const data = await response.json()
 
+        // Parse dates and filter for today and yesterday
+        const now = new Date()
+        const yesterday = new Date(now)
+        yesterday.setDate(yesterday.getDate() - 2) // Using 2 days ago for timezone safety
+        yesterday.setHours(0, 0, 0, 0)
+
+        // Filter and sort by date (newest first)
+        const recentArticles = (data || [])
+          .filter((article) => {
+            if (!article.date) return false
+            const articleDate = new Date(article.date)
+            // Valid date and is from today or yesterday
+            return !isNaN(articleDate.getTime()) && articleDate >= yesterday
+          })
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+        // If no recent articles, fallback to the latest 5 from all data, otherwise use the recent ones
+        const articlesToUse = recentArticles.length > 0 ? recentArticles : data
+
         // Use exactly 5 articles or fewer if not enough available
-        if (data && data.length > 0) {
+        if (articlesToUse && articlesToUse.length > 0) {
           // Limit to exactly 5 articles
-          const topArticles = data.slice(0, Math.min(5, data.length))
+          const topArticles = articlesToUse.slice(0, Math.min(5, articlesToUse.length))
           setArticles(topArticles)
 
           // Fetch images for all selected articles
@@ -218,7 +237,22 @@ const TopNews = () => {
   }
 
   if (loading) {
-    return <div className="top-news-container loading">Loading top news...</div>
+    return (
+      <div className="top-news-skeleton">
+        <div className="skeleton-bg"></div>
+        <div className="skeleton-shimmer"></div>
+        <div className="skeleton-content">
+          <div className="skeleton-title"></div>
+          <div className="skeleton-title short"></div>
+          <div className="skeleton-meta">
+            <div className="skeleton-meta-item"></div>
+            <div className="separator" style={{ color: '#333' }}>•</div>
+            <div className="skeleton-meta-item"></div>
+          </div>
+          <div className="skeleton-button"></div>
+        </div>
+      </div>
+    )
   }
 
   if (error) {

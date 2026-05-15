@@ -16,12 +16,10 @@ const BiasDetails = () => {
   useEffect(() => {
     const fetchArticleData = async () => {
       try {
-        // Fetch articles from API
-        const response = await fetch("http://localhost:5000/api/articles/scraped")
+        // Fetch the specific article by ID
+        const response = await fetch(`http://localhost:5000/api/articles/scraped/${id}`)
         if (response.ok) {
-          const articlesData = await response.json()
-          // Find the article with the matching ID
-          const foundArticle = articlesData.find((item) => item._id === id)
+          const foundArticle = await response.json()
 
           if (foundArticle) {
             setArticle(foundArticle)
@@ -68,72 +66,48 @@ const BiasDetails = () => {
   }, [])
 
   // Convert biasness label to bias class
+  // DB stores: "left", "center"/"central", "right" OR legacy "LABEL_0/1/2"
+  const getNormalizedBias = () => {
+    if (!article) return 'unknown'
+    const b = (article.biasness || '').toLowerCase()
+    if (b === 'left'   || b === 'label_0') return 'left'
+    if (b === 'center' || b === 'central' || b === 'label_1') return 'center'
+    if (b === 'right'  || b === 'label_2') return 'right'
+    return 'unknown'
+  }
+
   const getBiasClass = () => {
-    if (!article) return "bias-unknown"
-
-    switch (article.biasness) {
-      case "LABEL_0":
-        return "bias-left"
-      case "LABEL_1":
-        return "bias-center"
-      case "LABEL_2":
-        return "bias-right"
-      default:
-        return "bias-unknown"
-    }
+    return `bias-${getNormalizedBias()}`
   }
 
-  // Convert biasness label to text
   const getBiasText = () => {
-    if (!article) return "Unknown"
-
-    switch (article.biasness) {
-      case "LABEL_0":
-        return "Left-leaning"
-      case "LABEL_1":
-        return "Politically Neutral"
-      case "LABEL_2":
-        return "Right-leaning"
-      default:
-        return "Bias Unknown"
+    switch (getNormalizedBias()) {
+      case 'left':   return 'Left-leaning'
+      case 'center': return 'Politically Neutral'
+      case 'right':  return 'Right-leaning'
+      default:       return 'Bias Unknown'
     }
   }
 
-  // Get bias color based on biasness label
   const getBiasColor = () => {
-    if (!article) return "#4caf50"
-
-    switch (article.biasness) {
-      case "LABEL_0":
-        return "#3b5bdb" // Left - blue
-      case "LABEL_1":
-        return "#4caf50" // Center - green
-      case "LABEL_2":
-        return "#e53935" // Right - red
-      default:
-        return "#9e9e9e" // Unknown - gray
+    switch (getNormalizedBias()) {
+      case 'left':   return '#3b5bdb'
+      case 'center': return '#4caf50'
+      case 'right':  return '#e53935'
+      default:       return '#9e9e9e'
     }
   }
 
-  // Get bias position for the gauge
   const getBiasPosition = () => {
     if (!article) return 50
+    const bias = getNormalizedBias()
+    const score = article.score ? parseFloat(article.score) : 0.5
 
-    switch (article.biasness) {
-      case "LABEL_0": {
-        // Position on left side of gauge, adjust based on confidence score
-        const score = article.score ? parseFloat(article.score) : 0.5
-        return 25 - (score * 15)
-      }
-      case "LABEL_2": {
-        // Position on right side of gauge, adjust based on confidence score
-        const score = article.score ? parseFloat(article.score) : 0.5
-        return 75 + (score * 15)
-      }
-      case "LABEL_1":
-        return 50 // Center position
-      default:
-        return 50
+    switch (bias) {
+      case 'left':   return 25 - (score * 15)
+      case 'right':  return 75 + (score * 15)
+      case 'center': return 50
+      default:       return 50
     }
   }
 
@@ -241,13 +215,14 @@ const BiasDetails = () => {
   const biasPosition = getBiasPosition()
 
   // Calculate source distribution based on bias
-  const leftSources = article.biasness === "LABEL_0" ? 60 : article.biasness === "LABEL_1" ? 33 : 20
-  const centerSources = article.biasness === "LABEL_1" ? 50 : 30
-  const rightSources = article.biasness === "LABEL_2" ? 60 : article.biasness === "LABEL_1" ? 33 : 20
+  const bias = getNormalizedBias()
+  const leftSources = bias === 'left' ? 60 : bias === 'center' ? 33 : 20
+  const centerSources = bias === 'center' ? 50 : 30
+  const rightSources = bias === 'right' ? 60 : bias === 'center' ? 33 : 20
   
   // Calculate center coverage
-  const centerCoverage = article.biasness === "LABEL_1" ? "High" : 
-    (article.score && parseFloat(article.score) < 0.6) ? "Medium" : "Low"
+  const centerCoverage = bias === 'center' ? 'High' : 
+    (article.score && parseFloat(article.score) < 0.6) ? 'Medium' : 'Low'
 
   return (
     <div className="bias-container">
@@ -349,7 +324,7 @@ const BiasDetails = () => {
           <div className="bias-indicators">
             <h3>Bias Indicators Found</h3>
             <ul className="bias-indicators-list">
-              {article.biasness === "LABEL_0" && (
+              {bias === 'left' && (
                 <>
                   <li className="bias-indicator-item left-indicator">
                     <div className="indicator-header">
@@ -371,7 +346,7 @@ const BiasDetails = () => {
                   </li>
                 </>
               )}
-              {article.biasness === "LABEL_2" && (
+              {bias === 'right' && (
                 <>
                   <li className="bias-indicator-item right-indicator">
                     <div className="indicator-header">
@@ -393,7 +368,7 @@ const BiasDetails = () => {
                   </li>
                 </>
               )}
-              {article.biasness === "LABEL_1" && (
+              {bias === 'center' && (
                 <>
                   <li className="bias-indicator-item center-indicator">
                     <div className="indicator-header">

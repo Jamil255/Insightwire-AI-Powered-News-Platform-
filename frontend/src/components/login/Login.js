@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FaGoogle, FaTimes } from 'react-icons/fa';
 import './Login.css';
 
@@ -46,16 +47,43 @@ const Login = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  const handleEmailLogin = (e) => {
+  const handleEmailLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Email login:', email, password);
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          authType: "local"
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.msg || "Login failed");
+      }
+
+      // Save token and user data
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      alert("Login successful!");
+      onClose(); // close the modal on success
+      
+      // Optionally trigger a page reload or state update so navbar shows logged-in state
+      window.location.reload();
+    } catch (error) {
+      alert(error.message);
+    } finally {
       setIsLoading(false);
-      // Add your authentication logic here
-    }, 1000);
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -65,7 +93,7 @@ const Login = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="login-overlay" onClick={onClose}>
       <div className="login-dialog" onClick={(e) => e.stopPropagation()}>
         <button className="close-button" onClick={onClose} aria-label="Close">
@@ -134,7 +162,8 @@ const Login = ({ isOpen, onClose }) => {
           Don't have an account? <a href="#sign-up">Sign up now</a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

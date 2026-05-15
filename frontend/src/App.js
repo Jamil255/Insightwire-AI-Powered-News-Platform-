@@ -13,6 +13,7 @@ import BiasDetails from './components/MediaBais/BiasDetails';
 import StoryDetails from './components/StroyComparision/StoryDetails';
 import SearchResults from './components/SearchResults';
 import Chatbot from "./components/chatbot/chatbot"
+import Profile from "./components/Profile/Profile"
 import "./App.css"
 import "./Ticker.css"
 
@@ -44,6 +45,7 @@ function App() {
           <Route path="/bias-details/:id" element={<BiasDetails />} />
           <Route path="/story-details/:id" element={<StoryDetails />} />
           <Route path="/search" element={<SearchResults />} />
+          <Route path="/profile" element={<Profile />} />
           
           {/* Personalized Feed Route */}
           <Route path="/personalized-feed" element={<PersonalizedFeed />} />
