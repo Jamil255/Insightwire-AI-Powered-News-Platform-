@@ -22,7 +22,43 @@ const BiasDetails = () => {
           const foundArticle = await response.json()
 
           if (foundArticle) {
+            // First set the article as it is (for immediate loading of text)
             setArticle(foundArticle)
+
+            // Try to fetch real-time bias prediction from the external API
+            try {
+              const joinedContent = Array.isArray(foundArticle.content) 
+                ? foundArticle.content.join(" ") 
+                : foundArticle.content || "";
+                
+              const predictResponse = await fetch('https://oppositional-shanna-unacetic.ngrok-free.dev/predict', {
+                method: 'POST',
+                headers: {
+                  'accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  title: foundArticle.title || "",
+                  body: joinedContent.substring(0, 5000) // Limiting length to avoid API overload
+                })
+              });
+
+              if (predictResponse.ok) {
+                const predictData = await predictResponse.json();
+                console.log("Prediction API Response:", predictData);
+                
+                // Override the static DB bias with the real API prediction
+                // API returns label as "left", "center", "right"
+                foundArticle.biasness = predictData.label;
+                foundArticle.score = predictData.probabilities[predictData.label];
+                
+                // Update the state with the newly analyzed data
+                setArticle({...foundArticle});
+              }
+            } catch (apiErr) {
+              console.error("Error calling predict API:", apiErr);
+              // It will fallback to the DB biasness if API fails
+            }
 
             // Fetch the image for the article
             if (foundArticle.url) {
@@ -63,7 +99,7 @@ const BiasDetails = () => {
     }
 
     fetchArticleData()
-  }, [])
+  }, [id])
 
   // Convert biasness label to bias class
   // DB stores: "left", "center"/"central", "right" OR legacy "LABEL_0/1/2"
